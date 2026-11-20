@@ -1,0 +1,146 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: duoquiz-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # Local host port 5434 -> Container internal port 5432
+      - "${POSTGRES_HOST_PORT}:${POSTGRES_CONTAINER_PORT}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - duoquiz-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: duoquiz-redis
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_HOST_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - duoquiz-net
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: duoquiz-minio
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - duoquiz-net
+
+  minio-init:
+    image: amazon/aws-cli:latest
+    container_name: duoquiz-minio-init
+    depends_on:
+      - minio
+    env_file:
+      - .env
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until aws --endpoint-url "$${S3_ENDPOINT}" s3 ls >/dev/null 2>&1; do
+          echo "Waiting for MinIO..."
+          sleep 2
+        done
+        aws --endpoint-url "$${S3_ENDPOINT}" s3 mb "s3://$${S3_BUCKET}" || true
+        echo "Bucket $${S3_BUCKET} is ready."
+    networks:
+      - duoquiz-net
+
+  docling-service:
+    build:
+      context: ./services/docling-service
+      dockerfile: Dockerfile
+    container_name: duoquiz-docling
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: ${DOCLING_PORT}
+    expose:
+      - "${DOCLING_PORT}"
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['DOCLING_PORT'] + '/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - duoquiz-net
+
+  backend-api:
+    build:
+      context: ../duoQuiz-backend
+      dockerfile: Dockerfile
+    container_name: duoquiz-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${BACKEND_PORT}:${PORT}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - duoquiz-net
+
+  backend-worker:
+    build:
+      context: ../duoQuiz-backend
+      dockerfile: Dockerfile
+    container_name: duoquiz-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ["node", "dist/worker.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      docling-service:
+        condition: service_healthy
+    networks:
+      - duoquiz-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  duoquiz-net:
+    driver: bridge

@@ -1,0 +1,16 @@
+# Environment
+.env
+.env.local
+!.env.example
+
+# Python / Docling
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Logs & temp
+logs/
+tmp/
+*.log
+
