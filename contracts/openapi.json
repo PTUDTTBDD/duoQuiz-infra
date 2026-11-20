@@ -1,0 +1,428 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DuoQuiz API",
+    "version": "2.0.0",
+    "description": "ExpressJS + Prisma + PostgreSQL API contract for DuoQuiz"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "dependencies": {
+            "type": "object",
+            "properties": {
+              "postgres": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down"
+                ]
+              },
+              "redis": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down"
+                ]
+              },
+              "storage": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down"
+                ]
+              },
+              "docling": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "degraded",
+                  "down"
+                ]
+              }
+            },
+            "required": [
+              "postgres",
+              "redis",
+              "storage",
+              "docling"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "timestamp",
+          "dependencies"
+        ]
+      },
+      "AuthTokensResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              },
+              "fullName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reminderEnabled": {
+                "type": "boolean"
+              },
+              "reminderTime": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "fullName",
+              "reminderEnabled",
+              "reminderTime"
+            ]
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "user"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "requestId",
+              "details"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          },
+          "fullName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "GenerateQuizRequest": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1
+          },
+          "questionCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 25,
+            "default": 10
+          }
+        },
+        "required": [
+          "subjectId",
+          "documentIds"
+        ]
+      },
+      "LeitnerAnswerResponse": {
+        "type": "object",
+        "properties": {
+          "isCorrect": {
+            "type": "boolean"
+          },
+          "correctIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "previousBox": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "newBox": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "intervalDays": {
+            "type": "integer"
+          },
+          "nextReviewAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "isCorrect",
+          "correctIndex",
+          "explanation",
+          "previousBox",
+          "newBox",
+          "intervalDays",
+          "nextReviewAt"
+        ]
+      },
+      "LeitnerAnswerRequest": {
+        "type": "object",
+        "properties": {
+          "selectedIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          }
+        },
+        "required": [
+          "selectedIndex"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Check backend and Docker dependencies health",
+        "responses": {
+          "200": {
+            "description": "All dependencies healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "One or more dependencies degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "Register account with email and password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/quizzes/generate": {
+      "post": {
+        "summary": "Generate or reuse cached quiz from selected PDF documents (1-25 questions)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateQuizRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Quiz generation queued or cache hit returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quizSetId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "cacheHit": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "quizSetId",
+                    "cacheHit"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reviews/{questionId}/answer": {
+      "post": {
+        "summary": "Submit review answer and update 4-box Leitner schedule",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "questionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeitnerAnswerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Graded and Leitner card updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeitnerAnswerResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}
