@@ -1,0 +1,2 @@
+"""DuoQuiz Docling sidecar package."""
+
